@@ -11,6 +11,7 @@ from pathlib import Path
 
 from config import settings
 from pytonlib import TonlibClient
+from pytonlib.tonlibjson import TonlibError
 
 from indexer.database import *
 from indexer.crud import *
@@ -18,6 +19,7 @@ from indexer.crud import *
 
 loop = None
 index_worker = None
+
 
 @worker_process_init.connect()
 def configure_worker(signal=None, sender=None, **kwargs):
@@ -31,6 +33,7 @@ def configure_worker(signal=None, sender=None, **kwargs):
 
 class IndexWorker():
     def __init__(self, loop, ls_index, use_ext_method=False, cdll_path=None):
+        logger.info(f"Configuring worker with {ls_index}")
         with open(settings.indexer.liteserver_config, 'r') as f:
             tonlib_config = json.loads(f.read())
         
@@ -174,22 +177,41 @@ class IndexWorker():
         transactions = await asyncio.gather(*[self._get_block_transactions(block) for block in blocks])
         transactions = [await asyncio.gather(*[self._get_transaction_details(tx) for tx in txes]) for txes in transactions]
         return blocks, headers, transactions
-    
-    async def _get_raw_info_ext(self, seqno):
-        blocks = await self._get_block_with_shards(seqno)
-        headers = await asyncio.gather(*[self._get_block_header(block) for block in blocks])
-        transactions = await asyncio.gather(*[self._get_block_transactions_ext(block) for block in blocks])
-        return blocks, headers, transactions
+
+    async def get_account_info_for_block(self, mc_block, account):
+        request = {
+            '@type': 'withBlock',
+            'id': mc_block,
+            'function': {
+                '@type': 'raw.getAccountState',
+                'account_address': {
+                    'account_address': account
+                }
+            }
+        }
+        # logger.info(f"Sending message for {account} {mc_block}")
+        try:
+            acc_state = await self.client.tonlib_wrapper.execute(request, timeout=self.client.tonlib_timeout)
+            acc_state['address'] = account
+            # logger.info(f"Get response for  message for {account} {mc_block} {acc_state}")
+        except TonlibError as e:
+            if e and str(e) and 'VALIDATE_ACCOUNT_STATE' in str(e):
+                logger.warning(f"Unable to get account state for {account} {mc_block}: {e} {traceback.format_exc()}")
+                return {
+                    'address': account,
+                    'error': True
+                }
+            else:
+                raise e
+        return acc_state
     
     def get_raw_info(self, seqno):
-        if self.use_ext_method:
-            return self._get_raw_info_ext(seqno)
         return self._get_raw_info(seqno)
 
     async def process_mc_seqno(self, seqno: int):
         blocks, headers, transactions = await self.get_raw_info(seqno)
         try:
-            await insert_by_seqno_core(engine, blocks, headers, transactions)
+            await insert_by_seqno_core(engine, blocks, headers, transactions, self)
             logger.info(f'Block(seqno={seqno}) inserted')
         except Exception as ee:
             logger.warning(f'Failed to insert block(seqno={seqno}): {traceback.format_exc()}')
@@ -210,20 +232,6 @@ async def _get_block(mc_seqno_list):
 
     logger.info(f"{len(mc_seqno_list) - len(seqnos_to_process)} blocks already exist")
     return seqnos_to_process, await asyncio.gather(*[index_worker.process_mc_seqno(seqno) for seqno in seqnos_to_process], return_exceptions=True)
-
-async def process_account_info(addresses):
-    for address in addresses:
-        try:
-            account_raw = await index_worker.get_account_info(address)
-        except BaseException as e:
-            logger.error(f"Unable to process account {address}, error: {e}, type {type(e)}")
-            continue
-        try:
-            await insert_account(account_raw, address)
-        except NotImplementedError: # some accounts have broken account state
-            logger.error(f"NotImplementedError for {address}")
-            continue
-            
     
 @app.task(bind=True, max_retries=None,  acks_late=True)
 def get_block(self, mc_seqno_list):
@@ -242,12 +250,6 @@ def get_block(self, mc_seqno_list):
     task_result = list(zip(seqnos_to_process, results)) 
     task_result += [(seqno, None) for seqno in existing_seqnos] # adding indexed seqnos from previous tries
     return task_result
-
-@app.task(bind=True, acks_late=True)
-def get_account(self, addresses):
-    loop.run_until_complete(process_account_info(addresses))
-    logger.info(f"Processing finished for {self.request.id}: {len(addresses)} processed")
-    return len(addresses)
 
 @app.task(acks_late=True)
 def get_last_mc_block():
