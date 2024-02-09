@@ -19,26 +19,32 @@ Prerequisites: docker, docker-compose.
 If you are going to use your own private node, update ``liteservers`` section. _Note: only first liteserver
 will be used for indexing!_
 2. Prepare config in .env:
-``sh
+
+```sh
 TON_INDEXER_START_SEQNO=34880000  
 TON_INDEXER_LITE_SERVER_CONFIG=./wallet-mainnet.autoconf.json
-``
+```
+
 If you are intended to index Gram-20 data from the protocol start, use __34880000__ as a value for ``TON_INDEXER_START_SEQNO_``
 If you are using dumps from [gramscan.org](https://gramscan.org/dumps), get value from state.json, 
 and use **seqno - 100** in  ``TON_INDEXER_START_SEQNO_``. 
 3. Build docker images:
-``sh
+````sh
 docker compose build
-``
+````
 4. Create postgres password (using openssl rand, or any other tool, but pay attention to avoid \n):
-``sh
+````sh
 openssl rand -base64 10  | tr -d "\n" > private/postgres_password
-``
+````
 5. Run containers:
-``sh
+````sh
 docker compose up -d
-``
+````
 6. Check DB for new messages
+
+Note: embedded implementation of [libtonlibjson](./config/libtonlibjson.so.0.5)
+is only compatible with x86 architecture, to run it on any other 
+platform (like Apple M1) you have to rebuild it from [sources](https://github.com/ton-blockchain/ton).
 
 ### Production deployment considerations
 
