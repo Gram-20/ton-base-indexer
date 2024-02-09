@@ -74,7 +74,7 @@ async def init_database(create=False):
         if create:
             logger.info('Creating database')
             create_database(utils_url)
-        asyncio.sleep(0.5)
+        await asyncio.sleep(0.5)
 
     if create:
         async with engine.begin() as conn:

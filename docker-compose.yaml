@@ -1,4 +1,4 @@
-version: '3.3'
+version: '3.5'
 services:
   forward_indexer:
     build:
@@ -41,7 +41,6 @@ services:
     logging: *logging
     environment:
       START_SEQNO: ${TON_INDEXER_START_SEQNO:?start masterchain seqno is required}
-      BOTTOM_SEQNO: ${TON_INDEXER_BOTTOM_SEQNO:?bottom masterchain seqno is required}
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
       REDIS_HOST: redis
@@ -82,3 +81,6 @@ secrets:
     file: private/postgres_password
   tonlib_config:
     file: ${TON_INDEXER_LITE_SERVER_CONFIG:?liteserver config file is required}
+networks:
+  indexer:
+    name: indexer_net 
