@@ -13,6 +13,7 @@ from sqlalchemy_utils import create_database, database_exists, drop_database
 from sqlalchemy import Column, String, Integer, BigInteger, Boolean, Index, Enum, Numeric, LargeBinary, SmallInteger
 from sqlalchemy import ForeignKey, UniqueConstraint, Table
 from sqlalchemy.orm import relationship, backref
+from sqlalchemy import and_, or_, ColumnDefault
 from dataclasses import dataclass, asdict
 
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -199,7 +200,6 @@ class Transaction(Base):
     block = relationship("Block", backref="transactions")
 
     in_msg = relationship("Message", uselist=False, back_populates="in_tx", foreign_keys="Message.in_tx_id")
-    out_msgs = relationship("Message", back_populates="out_tx", foreign_keys="Message.out_tx_id")
     
     __table_args__ = (Index('transactions_index_1', 'account'),
                       Index('transactions_index_2', 'utime'), 

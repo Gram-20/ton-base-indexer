@@ -103,7 +103,7 @@ class BlockIndexScheduler(BaseScheduler):
                 logger.warning("Task _index_blocks was cancelled")
                 return
             except BaseException as e:
-                logger.error(f"Task _index_blocks raised exception: {exception}", exception=e)
+                logger.error(f"Task _index_blocks raised exception: {e}", exception=e)
 
     def handle_get_block_result(self, seqno, seqno_result):
         if seqno_result is None:
@@ -195,7 +195,7 @@ class ForwardScheduler(BlockIndexScheduler):
                 logger.warning("Task _get_new_blocks was cancelled")
                 return
             except BaseException as e:
-                logger.error(f"Task _get_new_blocks raised exception: {exception}", exception=e)
+                logger.error("Task _get_new_blocks raised exception: {exception}", exception=e)
 
 if __name__ == "__main__":
     if sys.argv[1] == 'forward':
